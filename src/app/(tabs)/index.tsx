@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -7,33 +7,24 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { supabase } from "../../lib/supabase";
 import { Flight } from "../../types/flight";
 
-const SAMPLE_FLIGHTS: Flight[] = [
-  {
-    id: "1",
-    date: "2026-09-20",
-    aircraft: "N172SP",
-    from: "KFDK",
-    to: "KHGR",
-    totalHours: 1.2,
-    nightHours: 0,
-    landings: 2,
-  },
-  {
-    id: "2",
-    date: "2026-10-02",
-    aircraft: "N172SP",
-    from: "KHGR",
-    to: "KFDK",
-    totalHours: 1.0,
-    nightHours: 0.4,
-    landings: 3,
-  },
-];
+function fromRow(r: any): Flight {
+  return {
+    id: r.id,
+    date: r.date,
+    aircraft: r.aircraft,
+    from: r.from_airport,
+    to: r.to_airport,
+    totalHours: Number(r.total_hours),
+    nightHours: Number(r.night_hours),
+    landings: r.landings,
+  };
+}
 
 export default function LogbookScreen() {
-  const [flights, setFlights] = useState<Flight[]>(SAMPLE_FLIGHTS);
+  const [flights, setFlights] = useState<Flight[]>([]);
   const [date, setDate] = useState("");
   const [aircraft, setAircraft] = useState("");
   const [from, setFrom] = useState("");
@@ -43,7 +34,20 @@ export default function LogbookScreen() {
   const [landings, setLandings] = useState("");
   const [error, setError] = useState("");
 
-  function addFlight() {
+  useEffect(() => {
+    loadFlights();
+  }, []);
+
+  async function loadFlights() {
+    const { data, error: loadError } = await supabase
+      .from("flights")
+      .select("*")
+      .order("date", { ascending: false });
+    if (loadError) setError(loadError.message);
+    else setFlights((data ?? []).map(fromRow));
+  }
+
+  async function addFlight() {
     const totalHours = parseFloat(total);
     const nightHours = parseFloat(night || "0");
     const landingCount = parseInt(landings || "0", 10);
@@ -69,18 +73,22 @@ export default function LogbookScreen() {
       return;
     }
 
-    const newFlight: Flight = {
-      id: Date.now().toString(),
+    const { error: insertError } = await supabase.from("flights").insert({
       date,
       aircraft: aircraft.trim().toUpperCase(),
-      from: from.trim().toUpperCase(),
-      to: to.trim().toUpperCase(),
-      totalHours,
-      nightHours,
+      from_airport: from.trim().toUpperCase(),
+      to_airport: to.trim().toUpperCase(),
+      total_hours: totalHours,
+      night_hours: nightHours,
       landings: landingCount,
-    };
+    });
 
-    setFlights([newFlight, ...flights]);
+    if (insertError) {
+      setError(insertError.message);
+      return;
+    }
+
+    await loadFlights();
     setDate("");
     setAircraft("");
     setFrom("");
@@ -91,8 +99,13 @@ export default function LogbookScreen() {
     setError("");
   }
 
-  function deleteFlight(id: string) {
-    setFlights(flights.filter((f) => f.id !== id));
+  async function deleteFlight(id: string) {
+    const { error: deleteError } = await supabase
+      .from("flights")
+      .delete()
+      .eq("id", id);
+    if (deleteError) setError(deleteError.message);
+    else setFlights(flights.filter((f) => f.id !== id));
   }
 
   const totalLogged = flights.reduce((sum, f) => sum + f.totalHours, 0);
@@ -103,6 +116,10 @@ export default function LogbookScreen() {
       <Text style={styles.subtitle}>
         {flights.length} flights · {totalLogged.toFixed(1)} hours total
       </Text>
+
+      <Pressable onPress={() => supabase.auth.signOut()}>
+        <Text style={styles.signOut}>Sign out</Text>
+      </Pressable>
 
       <TextInput
         style={styles.input}
@@ -204,6 +221,7 @@ const styles = StyleSheet.create({
   form: { padding: 16, paddingTop: 48 },
   title: { fontSize: 28, fontWeight: "bold" },
   subtitle: { color: "#666", marginBottom: 16 },
+  signOut: { color: "#d00", fontWeight: "600", marginBottom: 12 },
   input: {
     backgroundColor: "#fff",
     borderWidth: 1,
