@@ -1,14 +1,17 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import FadeInView from "../../components/FadeInView";
 import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { useAuth } from "../../lib/auth";
+  Button,
+  Card,
+  Chip,
+  Field,
+  IconName,
+  Screen,
+  SectionTitle,
+} from "../../components/ui";
 import {
   computeCurrency,
   CurrencyItem,
@@ -17,21 +20,37 @@ import {
 } from "../../lib/currency";
 import { fromRow } from "../../lib/flights";
 import { supabase } from "../../lib/supabase";
+import { colors } from "../../theme";
 
-const COLORS: Record<Status, string> = {
-  current: "#1a9e3f",
-  expiring: "#e0a100",
-  expired: "#d00",
+const STATUS_COLORS: Record<Status, string> = {
+  current: colors.go,
+  expiring: colors.caution,
+  expired: colors.nogo,
 };
 
-const LABELS: Record<Status, string> = {
+const STATUS_LABELS: Record<Status, string> = {
   current: "CURRENT",
   expiring: "EXPIRING SOON",
   expired: "NOT CURRENT",
 };
 
+const ITEM_ICONS: Record<string, IconName> = {
+  "Day passengers": "sunny",
+  "Night passengers": "moon",
+  "Flight review": "school",
+  Medical: "medkit",
+};
+
+function daysLeft(expires: string | null): number | null {
+  if (!expires) return null;
+  const [y, m, d] = expires.split("-").map(Number);
+  const [ty, tm, td] = todayString().split("-").map(Number);
+  return Math.round(
+    (Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000,
+  );
+}
+
 export default function CurrencyScreen() {
-  const { session } = useAuth();
   const [items, setItems] = useState<CurrencyItem[]>([]);
   const [review, setReview] = useState("");
   const [medical, setMedical] = useState("");
@@ -45,6 +64,7 @@ export default function CurrencyScreen() {
       .from("profiles")
       .select("*")
       .maybeSingle();
+
     if (flightError) {
       setMessage(flightError.message);
       return;
@@ -64,7 +84,6 @@ export default function CurrencyScreen() {
     );
   }, []);
 
-  // Reload every time this tab is opened so new flights show up
   useFocusEffect(
     useCallback(() => {
       load();
@@ -80,8 +99,16 @@ export default function CurrencyScreen() {
       setMessage("Dates must look like 2026-10-14");
       return;
     }
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+    if (!user) {
+      setMessage("You're signed out. Please sign in again.");
+      return;
+    }
+
     const { error } = await supabase.from("profiles").upsert({
-      user_id: session!.user.id,
+      user_id: user.id,
       last_flight_review: review || null,
       medical_expiry: medical || null,
     });
@@ -93,75 +120,121 @@ export default function CurrencyScreen() {
     load();
   }
 
+  const expired = items.filter((i) => i.status === "expired").length;
+  const expiring = items.filter((i) => i.status === "expiring").length;
+  const bannerColor = expired
+    ? colors.nogo
+    : expiring
+      ? colors.caution
+      : colors.go;
+  const bannerIcon: IconName = expired
+    ? "close-circle"
+    : expiring
+      ? "alert-circle"
+      : "checkmark-circle";
+  const bannerText =
+    items.length === 0
+      ? "Loading..."
+      : expired
+        ? `${expired} item${expired > 1 ? "s" : ""} not current`
+        : expiring
+          ? `${expiring} item${expiring > 1 ? "s" : ""} expiring soon`
+          : "Everything is current";
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Currency</Text>
-      <Text style={styles.subtitle}>Based on your logbook, as of today</Text>
-
-      {items.map((item) => (
-        <View
-          key={item.label}
-          style={[styles.card, { borderLeftColor: COLORS[item.status] }]}
+    <Screen
+      title="Currency"
+      subtitle="Calculated from your logbook, as of today"
+    >
+      <FadeInView delay={100}>
+        <Card
+          style={[
+            styles.banner,
+            { borderColor: bannerColor, backgroundColor: bannerColor + "1f" },
+          ]}
         >
-          <Text style={styles.label}>{item.label}</Text>
-          <Text style={[styles.status, { color: COLORS[item.status] }]}>
-            {LABELS[item.status]}
+          <Ionicons name={bannerIcon} size={32} color={bannerColor} />
+          <Text style={[styles.bannerText, { color: bannerColor }]}>
+            {bannerText}
           </Text>
-          <Text style={styles.detail}>{item.detail}</Text>
-        </View>
-      ))}
+        </Card>
+      </FadeInView>
 
-      <Text style={styles.section}>Your dates</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Last flight review (YYYY-MM-DD)"
-        value={review}
-        onChangeText={setReview}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Medical expiry (YYYY-MM-DD)"
-        value={medical}
-        onChangeText={setMedical}
-      />
-      {message ? <Text style={styles.message}>{message}</Text> : null}
-      <Pressable style={styles.button} onPress={saveProfile}>
-        <Text style={styles.buttonText}>Save</Text>
-      </Pressable>
-    </ScrollView>
+      {items.map((item, i) => {
+        const color = STATUS_COLORS[item.status];
+        const left = daysLeft(item.expires);
+        return (
+          <FadeInView key={item.label} delay={150 + i * 80}>
+            <Card accent={color}>
+              <View style={styles.itemRow}>
+                <View
+                  style={[styles.iconCircle, { backgroundColor: color + "26" }]}
+                >
+                  <Ionicons
+                    name={ITEM_ICONS[item.label] ?? "ellipse"}
+                    size={22}
+                    color={color}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>{item.label}</Text>
+                  <Text style={styles.detail}>{item.detail}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end", gap: 6 }}>
+                  <Chip label={STATUS_LABELS[item.status]} color={color} />
+                  {left !== null && left >= 0 && (
+                    <Text style={styles.days}>{left} days left</Text>
+                  )}
+                </View>
+              </View>
+            </Card>
+          </FadeInView>
+        );
+      })}
+
+      <SectionTitle>Your dates</SectionTitle>
+      <Card>
+        <Field
+          label="Last flight review"
+          placeholder="YYYY-MM-DD"
+          value={review}
+          onChangeText={setReview}
+        />
+        <Field
+          label="Medical expiry"
+          placeholder="YYYY-MM-DD"
+          value={medical}
+          onChangeText={setMedical}
+        />
+        {message ? (
+          <Text
+            style={[
+              styles.message,
+              message !== "Saved" && { color: colors.nogo },
+            ]}
+          >
+            {message}
+          </Text>
+        ) : null}
+        <Button title="Save dates" icon="checkmark" onPress={saveProfile} />
+      </Card>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#f5f5f7" },
-  content: { padding: 16, paddingTop: 48 },
-  title: { fontSize: 28, fontWeight: "bold" },
-  subtitle: { color: "#666", marginBottom: 16 },
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    borderLeftWidth: 6,
-    padding: 14,
-    marginBottom: 10,
-  },
-  label: { fontSize: 18, fontWeight: "bold" },
-  status: { fontWeight: "700", marginTop: 2 },
-  detail: { color: "#555", marginTop: 2 },
-  section: { fontSize: 20, fontWeight: "bold", marginTop: 20, marginBottom: 8 },
-  input: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-  },
-  message: { color: "#666", marginBottom: 8 },
-  button: {
-    backgroundColor: "#0a84ff",
-    padding: 14,
-    borderRadius: 8,
+  banner: { flexDirection: "row", alignItems: "center", gap: 12 },
+  bannerText: { fontSize: 18, fontWeight: "800" },
+  itemRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  iconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
+    justifyContent: "center",
   },
-  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  label: { color: colors.text, fontSize: 17, fontWeight: "700" },
+  detail: { color: colors.muted, marginTop: 2, fontSize: 13 },
+  days: { color: colors.muted, fontSize: 12 },
+  message: { color: colors.muted, marginBottom: 10 },
 });

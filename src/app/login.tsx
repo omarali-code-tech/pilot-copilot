@@ -1,6 +1,16 @@
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import FadeInView from "../components/FadeInView";
+import SkyHero from "../components/SkyHero";
 import { supabase } from "../lib/supabase";
+import { colors, radius } from "../theme";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -37,71 +47,105 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Pilot Copilot</Text>
-      <Text style={styles.subtitle}>
-        {isSignUp ? "Create your account" : "Sign in to your logbook"}
-      </Text>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.inner}>
+        <FadeInView>
+          <SkyHero />
+        </FadeInView>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+        <FadeInView delay={150}>
+          <Text style={styles.title}>Pilot Copilot</Text>
+          <Text style={styles.subtitle}>
+            {isSignUp
+              ? "Create your account"
+              : "Weather, currency, and a clear go/no-go"}
+          </Text>
+        </FadeInView>
 
-      {message ? <Text style={styles.message}>{message}</Text> : null}
+        <FadeInView delay={300}>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor={colors.muted}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
 
-      <Pressable style={styles.button} onPress={submit} disabled={busy}>
-        <Text style={styles.buttonText}>
-          {busy ? "Please wait..." : isSignUp ? "Sign up" : "Sign in"}
-        </Text>
-      </Pressable>
+          {message ? <Text style={styles.message}>{message}</Text> : null}
 
-      <Pressable onPress={() => setIsSignUp(!isSignUp)}>
-        <Text style={styles.link}>
-          {isSignUp
-            ? "Have an account? Sign in"
-            : "New here? Create an account"}
-        </Text>
-      </Pressable>
-    </View>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={submit}
+            disabled={busy}
+          >
+            <Text style={styles.buttonText}>
+              {busy ? "Please wait..." : isSignUp ? "Sign up" : "Sign in"}
+            </Text>
+          </Pressable>
+
+          <Pressable onPress={() => setIsSignUp(!isSignUp)}>
+            <Text style={styles.link}>
+              {isSignUp
+                ? "Have an account? Sign in"
+                : "New here? Create an account"}
+            </Text>
+          </Pressable>
+        </FadeInView>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#f5f5f7",
+  screen: { flex: 1, backgroundColor: colors.bg },
+  content: { flexGrow: 1, justifyContent: "center", padding: 24 },
+  inner: { width: "100%", maxWidth: 480, alignSelf: "center" },
+  title: {
+    fontSize: 34,
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+    marginTop: 24,
   },
-  title: { fontSize: 32, fontWeight: "bold", textAlign: "center" },
-  subtitle: { textAlign: "center", color: "#666", marginBottom: 24 },
+  subtitle: {
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 4,
+    marginBottom: 24,
+  },
   input: {
-    backgroundColor: "#fff",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: 14,
+    color: colors.text,
     marginBottom: 12,
   },
-  message: { color: "#d00", marginBottom: 12 },
+  message: { color: colors.nogo, marginBottom: 12 },
   button: {
-    backgroundColor: "#0a84ff",
-    padding: 14,
-    borderRadius: 8,
+    backgroundColor: colors.accent,
+    padding: 15,
+    borderRadius: radius.md,
     alignItems: "center",
   },
-  buttonText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
-  link: { color: "#0a84ff", textAlign: "center", marginTop: 16 },
+  buttonText: { color: colors.bg, fontWeight: "800", fontSize: 16 },
+  link: { color: colors.accent, textAlign: "center", marginTop: 18 },
 });
