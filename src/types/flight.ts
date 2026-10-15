@@ -7,4 +7,5 @@ export type Flight = {
   totalHours: number;
   nightHours: number;
   landings: number;
+  nightLandings: number; // full-stop night landings
 };

@@ -7,21 +7,9 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { fromRow } from "../../lib/flights";
 import { supabase } from "../../lib/supabase";
 import { Flight } from "../../types/flight";
-
-function fromRow(r: any): Flight {
-  return {
-    id: r.id,
-    date: r.date,
-    aircraft: r.aircraft,
-    from: r.from_airport,
-    to: r.to_airport,
-    totalHours: Number(r.total_hours),
-    nightHours: Number(r.night_hours),
-    landings: r.landings,
-  };
-}
 
 export default function LogbookScreen() {
   const [flights, setFlights] = useState<Flight[]>([]);
@@ -33,6 +21,7 @@ export default function LogbookScreen() {
   const [night, setNight] = useState("");
   const [landings, setLandings] = useState("");
   const [error, setError] = useState("");
+  const [nightLandings, setNightLandings] = useState("");
 
   useEffect(() => {
     loadFlights();
@@ -51,6 +40,7 @@ export default function LogbookScreen() {
     const totalHours = parseFloat(total);
     const nightHours = parseFloat(night || "0");
     const landingCount = parseInt(landings || "0", 10);
+    const nightLandingCount = parseInt(nightLandings || "0", 10);
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       setError("Date must look like 2026-10-14");
@@ -70,6 +60,15 @@ export default function LogbookScreen() {
     }
     if (isNaN(landingCount) || landingCount < 0) {
       setError("Landings must be 0 or more");
+      return;
+    }
+
+    if (
+      isNaN(nightLandingCount) ||
+      nightLandingCount < 0 ||
+      nightLandingCount > landingCount
+    ) {
+      setError("Night landings can't be more than total landings");
       return;
     }
 
@@ -171,6 +170,14 @@ export default function LogbookScreen() {
           keyboardType="number-pad"
           value={landings}
           onChangeText={setLandings}
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder="Night full-stop landings"
+          keyboardType="number-pad"
+          value={nightLandings}
+          onChangeText={setNightLandings}
         />
       </View>
 
